@@ -107,6 +107,65 @@
   .share-row input { flex: 1; }
   .share-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
+  /* Textvorlage im Durchklick-Modus */
+  .play-template { margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
+  .play-template .pt-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 12px;
+    border-bottom: 1px solid var(--line); background: var(--bg-3); }
+  .play-template .pt-label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .4px; text-transform: uppercase; }
+  .play-template .grow { flex: 1; }
+  .play-template pre { margin: 0; padding: 12px 14px; white-space: pre-wrap; word-break: break-word;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13px; line-height: 1.55; color: var(--text); }
+
+  /* Flowchart-Ansicht */
+  .flow-wrap { padding: 18px; overflow: auto; max-height: calc(100vh - 110px); }
+  .flow-hint { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .flow-wrap svg { display: block; margin: 0 auto; font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+  .fc-edge { fill: none; stroke: var(--muted); stroke-opacity: .55; stroke-width: 2; }
+  .fc-arrow { fill: var(--muted); fill-opacity: .8; }
+  .fc-elabel-bg { fill: var(--bg-2); stroke: var(--line); }
+  .fc-elabel-tx { fill: var(--muted); font-size: 11px; }
+  .fc-node { fill: var(--bg-3); stroke: var(--line); stroke-width: 1.5; transition: stroke .15s, filter .15s; }
+  .fc-node-g { cursor: pointer; }
+  .fc-node-g:hover .fc-node { stroke: var(--accent); filter: drop-shadow(0 4px 12px rgba(0,0,0,.45)); }
+  .fc-node.start { stroke: var(--accent); stroke-width: 2; }
+  .fc-node.end { stroke: var(--good); }
+  .fc-role { font-size: 9px; letter-spacing: .6px; fill: var(--muted); }
+  .fc-role.start { fill: var(--accent); }
+  .fc-role.end { fill: var(--good); }
+  .fc-title { fill: var(--text); font-size: 12.5px; font-weight: 600; pointer-events: none; }
+
+  /* Flowchart-Editor */
+  .flow-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .flow-bar .flow-hint { margin: 0; flex: 1 1 240px; }
+  .fc-node-g .fc-node { cursor: grab; }
+  .fc-node-g.sel .fc-node { stroke: var(--accent); stroke-width: 2.5; }
+  .fc-handle { fill: var(--accent); stroke: var(--bg); stroke-width: 2; cursor: crosshair; opacity: .35; transition: opacity .12s; }
+  .fc-node-g:hover .fc-handle { opacity: 1; }
+  .fc-temp { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 5 4; }
+  .fc-elabel.editable { cursor: pointer; }
+  .fc-elabel.editable:hover .fc-elabel-bg { stroke: var(--accent); }
+  .fc-role { pointer-events: none; }
+
+  /* Inspector-Panel */
+  #fcInspector { position: fixed; top: 64px; right: 16px; z-index: 45; width: 312px; max-height: calc(100vh - 84px);
+    display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); }
+  #fcInspector .fi-head { display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  #fcInspector .fi-x { background: none; border: 0; color: var(--muted); font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+  #fcInspector .fi-x:hover { background: var(--bg-3); color: var(--text); }
+  #fcInspector .fi-body { padding: 12px 14px; overflow: auto; }
+  #fcInspector label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 5px; }
+  #fcInspector label:first-child { margin-top: 0; }
+  #fcInspector input, #fcInspector textarea, #fcInspector select { width: 100%; background: var(--bg);
+    color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; }
+  #fcInspector textarea { resize: vertical; }
+  #fcInspector .fi-opt { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  #fcInspector .fi-opt .fi-opt-label { flex: 1 1 40%; }
+  #fcInspector .fi-opt .fi-opt-tgt { flex: 1 1 50%; }
+  #fcInspector .fi-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 12px 14px; border-top: 1px solid var(--line); }
+
   .content { flex: 1; overflow-y: auto; padding: 22px; }
 
   /* generic buttons */
@@ -226,6 +285,7 @@
       <button class="btn sm" id="shareBtn" style="margin-right:8px" title="Teilen-Link / Confluence-Einbettung">🔗 Teilen</button>
       <div class="seg">
         <button id="tabEdit" class="on">Bearbeiten</button>
+        <button id="tabFlow">Flowchart</button>
         <button id="tabPlay">Durchklicken</button>
       </div>
     </div>
@@ -246,6 +306,8 @@
   let play = { nodeId: null, history: [] };
   let sharedMode = false;         // aus URL geladen → localStorage nicht überschreiben
   let embedMode = false;          // chrome-lose Einbettung (Confluence-iframe)
+  let flowSel = null;             // im Flowchart ausgewählter Knoten
+  const FC = { NW: 196, NH: 66, hGap: 30, vGap: 66, pad: 24 };  // Flowchart-Maße
 
   // ---------- URL-Sharing (Base64url, UTF-8-sicher) ----------
   function b64urlEncode(str) {
@@ -296,7 +358,7 @@
   function currentWf() { return state.workflows.find((w) => w.id === state.currentId) || null; }
 
   function newNode(title, text) {
-    return { id: uid(), title: title || "Neuer Schritt", text: text || "", options: [] };
+    return { id: uid(), title: title || "Neuer Schritt", text: text || "", template: "", options: [] };
   }
 
   function makeWorkflow(name) {
@@ -321,6 +383,7 @@
     const noOrder = newNode("Keine Bestellung gefunden", "Es gibt keinen passenden Bestellvorgang.\nKläre mit dem Fachbereich, wer die Bestellung ausgelöst hat.");
     const order   = newNode("Bestellung vorhanden", "Stimmen Betrag und Positionen mit der Bestellung überein?");
     const mismatch = newNode("Abweichung klären", "Betrag/Positionen weichen ab. Rechnung an den Lieferanten zur Korrektur zurücksenden.");
+    mismatch.template = "Betreff: Rückfrage zu Ihrer Rechnung Nr. […]\n\nSehr geehrte Damen und Herren,\n\nbei der Prüfung Ihrer Rechnung Nr. […] sind Abweichungen zur Bestellung aufgefallen (Betrag bzw. Positionen).\nBitte senden Sie uns eine korrigierte Rechnung zu.\n\nMit freundlichen Grüßen";
     const ok      = newNode("Sachlich geprüft", "Liegt der Rechnungsbetrag über 5.000 €?");
     const small   = newNode("Freigabe Teamleitung", "Freigabe durch die Teamleitung genügt. Anschließend zur Buchhaltung weiterleiten.");
     const big     = newNode("Freigabe Geschäftsführung", "Ab 5.000 € ist die Freigabe der Geschäftsführung erforderlich.");
@@ -388,10 +451,12 @@
     topbar.style.display = "flex";
     $("#wfTitle").textContent = wf.name;
     $("#tabEdit").classList.toggle("on", mode === "edit");
+    $("#tabFlow").classList.toggle("on", mode === "flow");
     $("#tabPlay").classList.toggle("on", mode === "play");
     $("#saveCopyBtn").style.display = (sharedMode && !embedMode) ? "" : "none";
 
     if (mode === "edit") renderEditor(wf, content);
+    else if (mode === "flow") renderFlow(wf, content);
     else renderPlayer(wf, content);
   }
 
@@ -428,6 +493,10 @@
             <label>Beschreibung / Anweisung</label>
             <textarea class="node-text" data-node="${n.id}" placeholder="Erläuterung, was hier zu tun ist…">${esc(n.text)}</textarea>
           </div>
+          <div class="field">
+            <label>Textvorlage (optional)</label>
+            <textarea class="node-template" data-node="${n.id}" placeholder="Text- oder E-Mail-Baustein zum Kopieren – leer lassen = wird beim Durchklicken ausgeblendet">${esc(n.template)}</textarea>
+          </div>
           <div class="options-block">
             <label>Antworten / Wege</label>
             ${opts || '<p class="hint">Keine Antworten – dieser Schritt ist ein Endpunkt.</p>'}
@@ -455,6 +524,8 @@
       el.addEventListener("input", (e) => { nodeById(wf, e.target.dataset.node).title = e.target.value; save(); renderSidebar(); }));
     content.querySelectorAll(".node-text").forEach((el) =>
       el.addEventListener("input", (e) => { nodeById(wf, e.target.dataset.node).text = e.target.value; save(); }));
+    content.querySelectorAll(".node-template").forEach((el) =>
+      el.addEventListener("input", (e) => { nodeById(wf, e.target.dataset.node).template = e.target.value; save(); }));
 
     content.querySelectorAll(".del-node").forEach((el) =>
       el.addEventListener("click", () => deleteNode(wf, el.dataset.node)));
@@ -514,6 +585,15 @@
           <div class="kicker">${isEnd ? "Ergebnis" : "Schritt " + (play.history.length + 1)}</div>
           <h3>${esc(node.title)}</h3>
           ${node.text ? `<div class="body">${esc(node.text)}</div>` : ""}
+          ${node.template ? `
+            <div class="play-template">
+              <div class="pt-head">
+                <span class="pt-label">Textvorlage</span>
+                <div class="grow"></div>
+                <button class="btn sm" id="copyTpl">Kopieren</button>
+              </div>
+              <pre>${esc(node.template)}</pre>
+            </div>` : ""}
           ${isEnd
             ? `<div class="play-end">Ende der Strecke erreicht</div>`
             : `<div class="play-options">${optsHtml}</div>`}
@@ -532,8 +612,351 @@
         play.nodeId = tgt;
         render();
       }));
+    $("#copyTpl") && $("#copyTpl").addEventListener("click", () => copyText(node.template));
     $("#playBack") && $("#playBack").addEventListener("click", () => { play.nodeId = play.history.pop(); render(); });
     $("#playRestart") && $("#playRestart").addEventListener("click", () => { play.nodeId = wf.startNodeId; play.history = []; render(); });
+  }
+
+  // ---------- Flowchart ----------
+  function wrapTitle(str, maxChars, maxLines) {
+    const words = String(str == null ? "—" : str).trim().split(/\s+/);
+    const lines = [];
+    let cur = "";
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      if (!cur) cur = w;
+      else if ((cur + " " + w).length <= maxChars) cur += " " + w;
+      else { lines.push(cur); cur = w; if (lines.length === maxLines) break; }
+    }
+    if (cur && lines.length < maxLines) lines.push(cur);
+    const full = words.join(" ");
+    const shown = lines.join(" ");
+    if (shown.length < full.length) {
+      let last = lines[lines.length - 1];
+      if (last.length > maxChars - 1) last = last.slice(0, maxChars - 1);
+      lines[lines.length - 1] = last + "…";
+    }
+    return lines.length ? lines : ["—"];
+  }
+
+  // Automatisches Layout (BFS ab Start) → Positionen
+  function computeAutoLayout(wf) {
+    const nodes = wf.nodes, byId = {};
+    nodes.forEach((n) => { byId[n.id] = n; });
+    const depth = {};
+    const startId = (wf.startNodeId && byId[wf.startNodeId]) ? wf.startNodeId : (nodes[0] && nodes[0].id);
+    const queue = [];
+    if (startId) { depth[startId] = 0; queue.push(startId); }
+    while (queue.length) {
+      const id = queue.shift();
+      byId[id].options.forEach((o) => {
+        if (o.targetId && byId[o.targetId] && depth[o.targetId] === undefined) {
+          depth[o.targetId] = depth[id] + 1; queue.push(o.targetId);
+        }
+      });
+    }
+    let maxD = 0;
+    Object.keys(depth).forEach((k) => { if (depth[k] > maxD) maxD = depth[k]; });
+    const unreached = nodes.filter((n) => depth[n.id] === undefined);
+    if (unreached.length) { maxD += 1; unreached.forEach((n) => { depth[n.id] = maxD; }); }
+    const levels = {};
+    nodes.forEach((n) => { (levels[depth[n.id]] = levels[depth[n.id]] || []).push(n.id); });
+    let maxCount = 1;
+    Object.keys(levels).forEach((k) => { if (levels[k].length > maxCount) maxCount = levels[k].length; });
+    const spanW = FC.pad * 2 + maxCount * FC.NW + (maxCount - 1) * FC.hGap;
+    const pos = {};
+    Object.keys(levels).forEach((k) => {
+      const ids = levels[k];
+      const rowW = ids.length * FC.NW + (ids.length - 1) * FC.hGap;
+      const startX = (spanW - rowW) / 2;
+      const y = FC.pad + Number(k) * (FC.NH + FC.vGap);
+      ids.forEach((id, i) => { pos[id] = { x: startX + i * (FC.NW + FC.hGap), y: y }; });
+    });
+    return pos;
+  }
+
+  // Stellt sicher, dass jeder Knoten x/y hat (Erstanordnung bzw. neue Knoten unten anhängen)
+  function ensurePositions(wf) {
+    const haveAny = wf.nodes.some((n) => typeof n.x === "number" && typeof n.y === "number");
+    if (!haveAny) {
+      const pos = computeAutoLayout(wf);
+      wf.nodes.forEach((n) => { n.x = pos[n.id].x; n.y = pos[n.id].y; });
+    } else {
+      let maxY = 0;
+      wf.nodes.forEach((n) => { if (typeof n.y === "number") maxY = Math.max(maxY, n.y); });
+      wf.nodes.forEach((n) => {
+        if (typeof n.x !== "number" || typeof n.y !== "number") {
+          maxY += FC.NH + FC.vGap; n.x = FC.pad; n.y = maxY;
+        }
+      });
+    }
+    save();
+  }
+
+  function renderFlow(wf, content) {
+    ensurePositions(wf);
+    const editable = !embedMode;
+    const NW = FC.NW, NH = FC.NH, pad = FC.pad;
+    const byId = {}; wf.nodes.forEach((n) => { byId[n.id] = n; });
+
+    let canvasW = 560, canvasH = 360;
+    wf.nodes.forEach((n) => {
+      canvasW = Math.max(canvasW, n.x + NW + pad);
+      canvasH = Math.max(canvasH, n.y + NH + pad);
+    });
+
+    const edgeD = (s, t) => {
+      const x1 = s.x + NW / 2, y1 = s.y + NH, x2 = t.x + NW / 2, y2 = t.y, my = (y1 + y2) / 2;
+      return `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
+    };
+    const labelXY = (s, t) => ({ x: (s.x + t.x) / 2 + NW / 2, y: (s.y + NH + t.y) / 2 });
+
+    let edgeSvg = "", labelSvg = "";
+    wf.nodes.forEach((n) => {
+      n.options.forEach((o, idx) => {
+        if (!o.targetId || !byId[o.targetId]) return;
+        const t = byId[o.targetId];
+        edgeSvg += `<path class="fc-edge" data-src="${n.id}" data-tgt="${o.targetId}" marker-end="url(#fcArrow)" d="${edgeD(n, t)}" />`;
+        const lab = (o.label || "").trim();
+        const txt = lab ? (lab.length > 22 ? lab.slice(0, 21) + "…" : lab) : "(ohne Text)";
+        const w = txt.length * 6.3 + 16;
+        const lp = labelXY(n, t);
+        labelSvg += `<g class="fc-elabel ${editable ? "editable" : ""}" data-node="${n.id}" data-opt="${idx}" transform="translate(${lp.x} ${lp.y})">
+          <rect class="fc-elabel-bg" x="${-w / 2}" y="-11" width="${w}" height="22" rx="7" />
+          <text class="fc-elabel-tx" x="0" y="4" text-anchor="middle">${esc(txt)}</text></g>`;
+      });
+    });
+
+    let nodeSvg = "";
+    wf.nodes.forEach((n) => {
+      const isStart = n.id === wf.startNodeId;
+      const isEnd = n.options.filter((o) => o.targetId && byId[o.targetId]).length === 0;
+      const cls = isStart ? "start" : (isEnd ? "end" : "");
+      const role = isStart ? "START" : (isEnd ? "ENDE" : "");
+      const lines = wrapTitle(n.title || "—", 26, 2);
+      const titleY = (lines.length === 1 ? NH / 2 + 8 : NH / 2 - 2);
+      const spans = lines.map((ln, i) => `<tspan x="${NW / 2}" dy="${i === 0 ? 0 : 15}">${esc(ln)}</tspan>`).join("");
+      nodeSvg += `<g class="fc-node-g ${flowSel === n.id ? "sel" : ""}" data-node="${n.id}" transform="translate(${n.x} ${n.y})">
+        <rect class="fc-node ${cls}" x="0" y="0" width="${NW}" height="${NH}" rx="12" />
+        ${role ? `<text class="fc-role ${cls}" x="12" y="17">${role}</text>` : ""}
+        <text class="fc-title" x="${NW / 2}" y="${titleY}" text-anchor="middle">${spans}</text>
+        ${editable ? `<circle class="fc-handle" cx="${NW / 2}" cy="${NH}" r="7" />` : ""}
+      </g>`;
+    });
+
+    content.innerHTML = `
+      <div class="flow-wrap" id="flowWrap">
+        ${editable ? `<div class="flow-bar">
+          <button class="btn sm primary" id="fcAddNode">+ Schritt</button>
+          <button class="btn sm" id="fcAuto">Automatisch anordnen</button>
+          <span class="flow-hint">Knoten ziehen = verschieben · vom blauen Punkt (●) auf einen anderen Schritt ziehen = neuer Antwortweg (auf leere Fläche = neuer Schritt) · Klick = bearbeiten</span>
+        </div>` : `<p class="flow-hint">Diagramm des Ablaufs. Klicke auf einen Schritt, um ihn im Durchklicken-Modus zu öffnen.</p>`}
+        <svg id="fcSvg" viewBox="0 0 ${canvasW} ${canvasH}" width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="fcArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path class="fc-arrow" d="M 0 0 L 10 5 L 0 10 z" />
+            </marker>
+          </defs>
+          <g id="fcEdges">${edgeSvg}</g>
+          <g id="fcLabels">${labelSvg}</g>
+          <g id="fcNodes">${nodeSvg}</g>
+        </svg>
+      </div>`;
+
+    const svg = $("#fcSvg");
+
+    if (!editable) {
+      content.querySelectorAll(".fc-node-g").forEach((g) =>
+        g.addEventListener("click", () => { mode = "play"; play = { nodeId: g.dataset.node, history: [] }; render(); }));
+      return;
+    }
+
+    // ---- Toolbar ----
+    $("#fcAddNode").addEventListener("click", () => {
+      const n = newNode();
+      let maxY = 0; wf.nodes.forEach((m) => { maxY = Math.max(maxY, m.y); });
+      n.x = FC.pad; n.y = maxY + FC.NH + FC.vGap;
+      wf.nodes.push(n); flowSel = n.id; save(); render();
+    });
+    $("#fcAuto").addEventListener("click", () => {
+      const pos = computeAutoLayout(wf);
+      wf.nodes.forEach((n) => { n.x = pos[n.id].x; n.y = pos[n.id].y; });
+      save(); render();
+    });
+
+    const clientToSvg = (cx, cy) => {
+      const r = svg.getBoundingClientRect();
+      return { x: (cx - r.left) * (canvasW / r.width), y: (cy - r.top) * (canvasH / r.height) };
+    };
+    const redrawEdges = (nodeId) => {
+      svg.querySelectorAll("#fcEdges path").forEach((p) => {
+        if (p.dataset.src === nodeId || p.dataset.tgt === nodeId) {
+          p.setAttribute("d", edgeD(byId[p.dataset.src], byId[p.dataset.tgt]));
+        }
+      });
+      svg.querySelectorAll("#fcLabels .fc-elabel").forEach((gl) => {
+        const s = byId[gl.dataset.node]; const o = s && s.options[Number(gl.dataset.opt)];
+        if (!o || !byId[o.targetId]) return;
+        if (gl.dataset.node === nodeId || o.targetId === nodeId) {
+          const lp = labelXY(s, byId[o.targetId]);
+          gl.setAttribute("transform", `translate(${lp.x} ${lp.y})`);
+        }
+      });
+    };
+
+    let drag = null;
+    const onMove = (e) => {
+      if (!drag) return;
+      const p = clientToSvg(e.clientX, e.clientY);
+      if (drag.kind === "move") {
+        const nx = p.x - drag.dx, ny = p.y - drag.dy;
+        if (Math.abs(nx - drag.ox) > 3 || Math.abs(ny - drag.oy) > 3) drag.moved = true;
+        byId[drag.id].x = nx; byId[drag.id].y = ny;
+        drag.g.setAttribute("transform", `translate(${nx} ${ny})`);
+        redrawEdges(drag.id);
+      } else if (drag.kind === "link") {
+        const my = (drag.from.y + p.y) / 2;
+        drag.tmp.setAttribute("d", `M ${drag.from.x} ${drag.from.y} C ${drag.from.x} ${my}, ${p.x} ${my}, ${p.x} ${p.y}`);
+      }
+    };
+    const onUp = (e) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (!drag) return;
+      const d = drag; drag = null;
+      if (d.kind === "move") {
+        if (!d.moved) { flowSel = d.id; render(); }
+        else { save(); }
+      } else if (d.kind === "link") {
+        d.tmp.remove();
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const tg = el && el.closest ? el.closest(".fc-node-g") : null;
+        const src = byId[d.id];
+        if (tg && tg.dataset.node && tg.dataset.node !== d.id) {
+          src.options.push({ label: "Antwort", targetId: tg.dataset.node });
+          flowSel = d.id; save(); render(); toast("Antwortweg hinzugefügt");
+        } else if (!tg) {
+          const p = clientToSvg(e.clientX, e.clientY);
+          const n = newNode();
+          n.x = Math.max(FC.pad, p.x - NW / 2); n.y = Math.max(FC.pad, p.y);
+          wf.nodes.push(n);
+          src.options.push({ label: "Antwort", targetId: n.id });
+          flowSel = n.id; save(); render(); toast("Neuer Schritt + Antwortweg");
+        }
+      }
+    };
+
+    svg.querySelectorAll(".fc-node-g").forEach((g) => {
+      const id = g.dataset.node;
+      const handle = g.querySelector(".fc-handle");
+      if (handle) handle.addEventListener("pointerdown", (e) => {
+        e.stopPropagation(); e.preventDefault();
+        const tmp = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        tmp.setAttribute("class", "fc-temp");
+        tmp.setAttribute("marker-end", "url(#fcArrow)");
+        svg.querySelector("#fcEdges").appendChild(tmp);
+        drag = { kind: "link", id, from: { x: byId[id].x + NW / 2, y: byId[id].y + NH }, tmp };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      });
+      g.addEventListener("pointerdown", (e) => {
+        if (e.target.classList.contains("fc-handle")) return;
+        e.preventDefault();
+        const p = clientToSvg(e.clientX, e.clientY);
+        drag = { kind: "move", id, dx: p.x - byId[id].x, dy: p.y - byId[id].y, ox: byId[id].x, oy: byId[id].y, moved: false, g };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      });
+    });
+
+    content.querySelectorAll("#fcLabels .fc-elabel.editable").forEach((gl) =>
+      gl.addEventListener("click", () => { flowSel = gl.dataset.node; render(); }));
+
+    if (flowSel && byId[flowSel]) openInspector(flowSel);
+  }
+
+  // Inspector-Panel zum Bearbeiten eines Knotens im Flowchart
+  function openInspector(nodeId) {
+    const wf = currentWf(); if (!wf) return;
+    const n = wf.nodes.find((x) => x.id === nodeId); if (!n) return;
+    const host = $("#flowWrap"); if (!host) return;
+    const old = $("#fcInspector"); if (old) old.remove();
+
+    const targetOpts = (sel) => '<option value="">— Ende (kein Folgeschritt) —</option>' +
+      wf.nodes.filter((m) => m.id !== n.id).map((m) =>
+        `<option value="${m.id}" ${m.id === sel ? "selected" : ""}>${esc(m.title)}</option>`).join("");
+    const optRows = n.options.map((o, i) => `
+      <div class="fi-opt">
+        <input class="fi-opt-label" data-idx="${i}" value="${esc(o.label)}" placeholder="Antwort" />
+        <select class="fi-opt-tgt" data-idx="${i}">${targetOpts(o.targetId)}</select>
+        <button class="btn sm danger fi-opt-del" data-idx="${i}" title="Antwort entfernen">✕</button>
+      </div>`).join("");
+
+    const panel = document.createElement("div");
+    panel.id = "fcInspector";
+    panel.innerHTML = `
+      <div class="fi-head"><strong>Schritt bearbeiten</strong><button class="fi-x" id="fiClose" title="Schließen">✕</button></div>
+      <div class="fi-body">
+        <label>Titel / Frage</label>
+        <input id="fiTitle" value="${esc(n.title)}" />
+        <label>Beschreibung / Anweisung</label>
+        <textarea id="fiText" rows="3" placeholder="Erläuterung…">${esc(n.text)}</textarea>
+        <label>Textvorlage (optional)</label>
+        <textarea id="fiTpl" rows="2" placeholder="leer = im Durchklicken ausgeblendet">${esc(n.template)}</textarea>
+        <label>Antworten / Wege</label>
+        <div id="fiOpts">${optRows || '<p class="hint">Noch keine Antwort. Vom ●-Punkt ziehen oder unten hinzufügen.</p>'}</div>
+        <button class="btn sm" id="fiAddOpt" style="margin-top:6px">+ Antwort</button>
+      </div>
+      <div class="fi-foot">
+        ${n.id === wf.startNodeId ? '<span class="badge start">★ Start</span>' : '<button class="btn sm ghost" id="fiSetStart">Als Start</button>'}
+        <button class="btn sm" id="fiPlay">▶ Durchklicken</button>
+        <button class="btn sm danger" id="fiDel">Löschen</button>
+      </div>`;
+    host.appendChild(panel);
+
+    $("#fiClose").addEventListener("click", () => { flowSel = null; render(); });
+    $("#fiTitle").addEventListener("input", (e) => { n.title = e.target.value; save(); updateNodeTitle(n.id); renderSidebar(); });
+    $("#fiText").addEventListener("input", (e) => { n.text = e.target.value; save(); });
+    $("#fiTpl").addEventListener("input", (e) => { n.template = e.target.value; save(); });
+    $("#fiAddOpt").addEventListener("click", () => { n.options.push({ label: "Antwort", targetId: "" }); save(); render(); });
+    panel.querySelectorAll(".fi-opt-label").forEach((el) =>
+      el.addEventListener("input", (e) => { n.options[Number(e.target.dataset.idx)].label = e.target.value; save(); updateEdgeLabel(n.id, Number(e.target.dataset.idx)); }));
+    panel.querySelectorAll(".fi-opt-tgt").forEach((el) =>
+      el.addEventListener("change", (e) => { n.options[Number(e.target.dataset.idx)].targetId = e.target.value; save(); render(); }));
+    panel.querySelectorAll(".fi-opt-del").forEach((el) =>
+      el.addEventListener("click", (e) => { n.options.splice(Number(e.target.dataset.idx), 1); save(); render(); }));
+    $("#fiSetStart") && $("#fiSetStart").addEventListener("click", () => { wf.startNodeId = n.id; save(); render(); });
+    $("#fiPlay").addEventListener("click", () => { mode = "play"; play = { nodeId: n.id, history: [] }; flowSel = null; render(); });
+    $("#fiDel").addEventListener("click", () => {
+      if (wf.nodes.length === 1) { toast("Mindestens ein Schritt muss bleiben"); return; }
+      if (!confirm("Diesen Schritt löschen?")) return;
+      wf.nodes = wf.nodes.filter((x) => x.id !== n.id);
+      wf.nodes.forEach((m) => m.options.forEach((o) => { if (o.targetId === n.id) o.targetId = ""; }));
+      if (wf.startNodeId === n.id) wf.startNodeId = wf.nodes[0].id;
+      flowSel = null; save(); render();
+    });
+  }
+
+  // Leichte DOM-Updates beim Tippen (ohne kompletten Re-Render)
+  function updateNodeTitle(id) {
+    const wf = currentWf(); const n = wf && wf.nodes.find((x) => x.id === id);
+    const el = document.querySelector('.fc-node-g[data-node="' + id + '"] .fc-title');
+    if (!el || !n) return;
+    const lines = wrapTitle(n.title || "—", 26, 2);
+    el.setAttribute("y", lines.length === 1 ? FC.NH / 2 + 8 : FC.NH / 2 - 2);
+    el.innerHTML = lines.map((ln, i) => `<tspan x="${FC.NW / 2}" dy="${i === 0 ? 0 : 15}">${esc(ln)}</tspan>`).join("");
+  }
+  function updateEdgeLabel(id, idx) {
+    const gl = document.querySelector('#fcLabels .fc-elabel[data-node="' + id + '"][data-opt="' + idx + '"]');
+    if (!gl) return;
+    const wf = currentWf(); const n = wf && wf.nodes.find((x) => x.id === id); const o = n && n.options[idx];
+    if (!o) return;
+    const lab = (o.label || "").trim();
+    const txt = lab ? (lab.length > 22 ? lab.slice(0, 21) + "…" : lab) : "(ohne Text)";
+    const w = txt.length * 6.3 + 16;
+    gl.querySelector("text").textContent = txt;
+    gl.querySelector("rect").setAttribute("x", -w / 2);
+    gl.querySelector("rect").setAttribute("width", w);
   }
 
   // ---------- Workflow actions ----------
@@ -605,6 +1028,8 @@
     const embedLink = baseUrl() + "?wf=" + code + "&embed=1";
     const iframe = '<iframe src="' + embedLink + '" width="100%" height="640" ' +
       'style="border:0;border-radius:12px" loading="lazy"></iframe>';
+    const iframeFlow = '<iframe src="' + embedLink + '&mode=flow" width="100%" height="640" ' +
+      'style="border:0;border-radius:12px" loading="lazy"></iframe>';
 
     const ov = document.createElement("div");
     ov.className = "share-ov";
@@ -619,10 +1044,16 @@
           <button class="btn" data-copy="link">Kopieren</button>
         </div>
 
-        <label>In Confluence einbetten (iframe-Code für HTML-/iframe-Makro)</label>
+        <label>In Confluence einbetten – Durchklicken (iframe für HTML-/iframe-Makro)</label>
         <textarea id="shIframe" readonly rows="3">${esc(iframe)}</textarea>
         <div class="share-row" style="margin-top:8px;justify-content:flex-end">
           <button class="btn" data-copy="iframe">iframe kopieren</button>
+        </div>
+
+        <label>In Confluence einbetten – Flowchart</label>
+        <textarea id="shIframeFlow" readonly rows="3">${esc(iframeFlow)}</textarea>
+        <div class="share-row" style="margin-top:8px;justify-content:flex-end">
+          <button class="btn" data-copy="iframeFlow">iframe kopieren</button>
         </div>
 
         <div class="share-foot">
@@ -636,6 +1067,7 @@
     ov.querySelector("[data-close]").addEventListener("click", close);
     ov.querySelector('[data-copy="link"]').addEventListener("click", () => copyText(playLink));
     ov.querySelector('[data-copy="iframe"]').addEventListener("click", () => copyText(iframe));
+    ov.querySelector('[data-copy="iframeFlow"]').addEventListener("click", () => copyText(iframeFlow));
   }
 
   function saveCopy() {
@@ -658,6 +1090,7 @@
   $("#importBtn").addEventListener("click", () => $("#importFile").click());
   $("#importFile").addEventListener("change", (e) => { if (e.target.files[0]) importWf(e.target.files[0]); e.target.value = ""; });
   $("#tabEdit").addEventListener("click", () => { mode = "edit"; render(); });
+  $("#tabFlow").addEventListener("click", () => { mode = "flow"; render(); });
   $("#tabPlay").addEventListener("click", () => { mode = "play"; play = { nodeId: null, history: [] }; render(); });
   $("#shareBtn").addEventListener("click", openShare);
   $("#saveCopyBtn").addEventListener("click", saveCopy);
@@ -673,7 +1106,8 @@
     sharedMode = true;
     embedMode = p.get("embed") === "1";
     state = { workflows: [wf], currentId: wf.id };
-    mode = (embedMode || p.get("mode") === "play") ? "play" : "edit";
+    const m = p.get("mode");
+    mode = (m === "play" || m === "flow") ? m : (embedMode ? "play" : "edit");
     if (embedMode) document.body.classList.add("embed");
     return true;
   }
