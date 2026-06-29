@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Klickstrecken",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "vite", "--port", "5180", "."],
+      "port": 5180
+    }
+  ]
+}
