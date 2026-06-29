@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "Klickstrecken",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["-y", "vite", "--port", "5180", "."],
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5180"],
       "port": 5180
     }
   ]

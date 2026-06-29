@@ -84,6 +84,29 @@
   }
   .seg button.on { background: var(--accent-2); color: #fff; }
 
+  /* Embed-Modus (chrome-los, z. B. für Confluence-iframe) */
+  body.embed .sidebar { display: none; }
+  body.embed .app { grid-template-columns: 1fr; }
+  body.embed .topbar .seg,
+  body.embed #shareBtn,
+  body.embed #saveCopyBtn { display: none; }
+
+  /* Teilen-Dialog */
+  .share-ov { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center;
+    justify-content: center; background: rgba(0,0,0,.55); padding: 20px; }
+  .share-box { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); width: min(640px, 100%); max-height: 90vh; overflow: auto; padding: 22px; }
+  .share-box h3 { margin: 0 0 4px; font-size: 17px; }
+  .share-box p.hint { color: var(--muted); font-size: 12px; margin: 6px 0 16px; }
+  .share-box label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px; }
+  .share-box input, .share-box textarea { width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font-size: 13px;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .share-box textarea { resize: vertical; min-height: 60px; }
+  .share-row { display: flex; gap: 8px; align-items: stretch; }
+  .share-row input { flex: 1; }
+  .share-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
   .content { flex: 1; overflow-y: auto; padding: 22px; }
 
   /* generic buttons */
@@ -199,6 +222,8 @@
     <div class="topbar" id="topbar" style="display:none">
       <h2 id="wfTitle">–</h2>
       <div class="grow"></div>
+      <button class="btn sm" id="saveCopyBtn" style="display:none;margin-right:8px">Als eigene Kopie speichern</button>
+      <button class="btn sm" id="shareBtn" style="margin-right:8px" title="Teilen-Link / Confluence-Einbettung">🔗 Teilen</button>
       <div class="seg">
         <button id="tabEdit" class="on">Bearbeiten</button>
         <button id="tabPlay">Durchklicken</button>
@@ -219,6 +244,26 @@
   let state = { workflows: [], currentId: null };
   let mode = "edit";              // 'edit' | 'play'
   let play = { nodeId: null, history: [] };
+  let sharedMode = false;         // aus URL geladen → localStorage nicht überschreiben
+  let embedMode = false;          // chrome-lose Einbettung (Confluence-iframe)
+
+  // ---------- URL-Sharing (Base64url, UTF-8-sicher) ----------
+  function b64urlEncode(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = "";
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function b64urlDecode(str) {
+    let s = str.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  const encodeWf = (wf) => b64urlEncode(JSON.stringify(wf));
+  const decodeWf = (raw) => JSON.parse(b64urlDecode(raw));
 
   const $ = (sel) => document.querySelector(sel);
   const uid = () => Math.random().toString(36).slice(2, 9);
@@ -235,6 +280,7 @@
 
   // ---------- Persistence ----------
   function save() {
+    if (sharedMode) return;   // geteilte/eingebettete Ansicht ist read-only fürs lokale Speichern
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
     catch (e) { toast("Speichern fehlgeschlagen"); }
   }
@@ -343,6 +389,7 @@
     $("#wfTitle").textContent = wf.name;
     $("#tabEdit").classList.toggle("on", mode === "edit");
     $("#tabPlay").classList.toggle("on", mode === "play");
+    $("#saveCopyBtn").style.display = (sharedMode && !embedMode) ? "" : "none";
 
     if (mode === "edit") renderEditor(wf, content);
     else renderPlayer(wf, content);
@@ -540,6 +587,71 @@
     reader.readAsText(file);
   }
 
+  // ---------- Teilen / Einbetten ----------
+  function baseUrl() { return location.origin + location.pathname; }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => toast("In Zwischenablage kopiert"),
+        () => toast("Kopieren nicht möglich"));
+    } else { toast("Kopieren nicht möglich – bitte manuell markieren"); }
+  }
+
+  function openShare() {
+    const wf = currentWf();
+    if (!wf) { toast("Keine Klickstrecke ausgewählt"); return; }
+    const code = encodeWf(wf);
+    const playLink = baseUrl() + "?wf=" + code + "&mode=play";
+    const embedLink = baseUrl() + "?wf=" + code + "&embed=1";
+    const iframe = '<iframe src="' + embedLink + '" width="100%" height="640" ' +
+      'style="border:0;border-radius:12px" loading="lazy"></iframe>';
+
+    const ov = document.createElement("div");
+    ov.className = "share-ov";
+    ov.innerHTML = `
+      <div class="share-box">
+        <h3>„${esc(wf.name)}" teilen</h3>
+        <p class="hint">Der komplette Inhalt steckt im Link – kein Server, keine Anmeldung nötig.</p>
+
+        <label>Direkt-Link (öffnet sofort im Durchklicken-Modus)</label>
+        <div class="share-row">
+          <input id="shLink" readonly value="${esc(playLink)}" />
+          <button class="btn" data-copy="link">Kopieren</button>
+        </div>
+
+        <label>In Confluence einbetten (iframe-Code für HTML-/iframe-Makro)</label>
+        <textarea id="shIframe" readonly rows="3">${esc(iframe)}</textarea>
+        <div class="share-row" style="margin-top:8px;justify-content:flex-end">
+          <button class="btn" data-copy="iframe">iframe kopieren</button>
+        </div>
+
+        <div class="share-foot">
+          <button class="btn ghost" data-close>Schließen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+
+    const close = () => ov.remove();
+    ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
+    ov.querySelector("[data-close]").addEventListener("click", close);
+    ov.querySelector('[data-copy="link"]').addEventListener("click", () => copyText(playLink));
+    ov.querySelector('[data-copy="iframe"]').addEventListener("click", () => copyText(iframe));
+  }
+
+  function saveCopy() {
+    const cur = currentWf();
+    if (!cur) return;
+    const copy = JSON.parse(JSON.stringify(cur));
+    copy.id = uid();
+    let real;
+    try { real = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { real = null; }
+    if (!real || !Array.isArray(real.workflows)) real = { workflows: [], currentId: null };
+    real.workflows.push(copy);
+    real.currentId = copy.id;
+    try { localStorage.setItem(LS_KEY, JSON.stringify(real)); } catch (e) {}
+    location.href = baseUrl();   // ohne URL-Parameter neu laden → normale, bearbeitbare Ansicht
+  }
+
   // ---------- Init / global events ----------
   $("#newWfBtn").addEventListener("click", createWf);
   $("#exportBtn").addEventListener("click", exportWf);
@@ -547,8 +659,28 @@
   $("#importFile").addEventListener("change", (e) => { if (e.target.files[0]) importWf(e.target.files[0]); e.target.value = ""; });
   $("#tabEdit").addEventListener("click", () => { mode = "edit"; render(); });
   $("#tabPlay").addEventListener("click", () => { mode = "play"; play = { nodeId: null, history: [] }; render(); });
+  $("#shareBtn").addEventListener("click", openShare);
+  $("#saveCopyBtn").addEventListener("click", saveCopy);
 
-  if (!load() || !state.workflows.length) {
+  function bootFromUrl() {
+    const p = new URLSearchParams(location.search);
+    const raw = p.get("wf");
+    if (!raw) return false;
+    let wf;
+    try { wf = decodeWf(raw); } catch (e) { return false; }
+    if (!wf || !Array.isArray(wf.nodes) || !wf.nodes.length) return false;
+    wf.id = wf.id || uid();
+    sharedMode = true;
+    embedMode = p.get("embed") === "1";
+    state = { workflows: [wf], currentId: wf.id };
+    mode = (embedMode || p.get("mode") === "play") ? "play" : "edit";
+    if (embedMode) document.body.classList.add("embed");
+    return true;
+  }
+
+  if (bootFromUrl()) {
+    // Geteilte/eingebettete Ansicht – lokalen Speicher unangetastet lassen
+  } else if (!load() || !state.workflows.length) {
     state = { workflows: [sampleWorkflow()], currentId: null };
     state.currentId = state.workflows[0].id;
     save();
