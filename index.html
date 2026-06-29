@@ -106,6 +106,10 @@
   .share-row { display: flex; gap: 8px; align-items: stretch; }
   .share-row input { flex: 1; }
   .share-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .share-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 16px 0 4px; }
+  .share-toggle input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .share-toggle > span { color: var(--text); }
+  .share-toggle .hint { font-size: 12px; }
 
   /* Textvorlage im Durchklick-Modus */
   .play-template { margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
@@ -1037,12 +1041,16 @@
     const wf = currentWf();
     if (!wf) { toast("Keine Klickstrecke ausgewählt"); return; }
     const code = encodeWf(wf);
-    const playLink = baseUrl() + "?wf=" + code + "&mode=play";
-    const embedLink = baseUrl() + "?wf=" + code + "&embed=1";
-    const iframe = '<iframe src="' + embedLink + '" width="100%" height="640" ' +
-      'style="border:0;border-radius:12px" loading="lazy"></iframe>';
-    const iframeFlow = '<iframe src="' + embedLink + '&mode=flow" width="100%" height="640" ' +
-      'style="border:0;border-radius:12px" loading="lazy"></iframe>';
+
+    // Links abhängig vom Embed-Schalter
+    const links = (embed) => {
+      const e = embed ? "&embed=1" : "";
+      const play = baseUrl() + "?wf=" + code + e + "&mode=play";
+      const flow = baseUrl() + "?wf=" + code + e + "&mode=flow";
+      const frame = (src) => '<iframe src="' + src + '" width="100%" height="640" ' +
+        'style="border:0;border-radius:12px" loading="lazy"></iframe>';
+      return { play: play, flow: flow, iframe: frame(play), iframeFlow: frame(flow) };
+    };
 
     const ov = document.createElement("div");
     ov.className = "share-ov";
@@ -1051,20 +1059,25 @@
         <h3>„${esc(wf.name)}" teilen</h3>
         <p class="hint">Der komplette Inhalt steckt im Link – kein Server, keine Anmeldung nötig.</p>
 
-        <label>Direkt-Link (öffnet sofort im Durchklicken-Modus)</label>
+        <label class="share-toggle">
+          <input type="checkbox" id="shEmbed" checked />
+          <span>Embed-Modus <span class="hint">(ohne Seitenleiste &amp; Tabs – ideal zum Einbetten)</span></span>
+        </label>
+
+        <label>Direkt-Link (öffnet im Durchklicken-Modus)</label>
         <div class="share-row">
-          <input id="shLink" readonly value="${esc(playLink)}" />
+          <input id="shLink" readonly />
           <button class="btn" data-copy="link">Kopieren</button>
         </div>
 
         <label>In Confluence einbetten – Durchklicken (iframe für HTML-/iframe-Makro)</label>
-        <textarea id="shIframe" readonly rows="3">${esc(iframe)}</textarea>
+        <textarea id="shIframe" readonly rows="3"></textarea>
         <div class="share-row" style="margin-top:8px;justify-content:flex-end">
           <button class="btn" data-copy="iframe">iframe kopieren</button>
         </div>
 
         <label>In Confluence einbetten – Flowchart</label>
-        <textarea id="shIframeFlow" readonly rows="3">${esc(iframeFlow)}</textarea>
+        <textarea id="shIframeFlow" readonly rows="3"></textarea>
         <div class="share-row" style="margin-top:8px;justify-content:flex-end">
           <button class="btn" data-copy="iframeFlow">iframe kopieren</button>
         </div>
@@ -1075,12 +1088,22 @@
       </div>`;
     document.body.appendChild(ov);
 
+    const linkEl = ov.querySelector("#shLink");
+    const ifEl = ov.querySelector("#shIframe");
+    const ifFlowEl = ov.querySelector("#shIframeFlow");
+    const refresh = () => {
+      const l = links(ov.querySelector("#shEmbed").checked);
+      linkEl.value = l.play; ifEl.value = l.iframe; ifFlowEl.value = l.iframeFlow;
+    };
+    refresh();
+
     const close = () => ov.remove();
     ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
     ov.querySelector("[data-close]").addEventListener("click", close);
-    ov.querySelector('[data-copy="link"]').addEventListener("click", () => copyText(playLink));
-    ov.querySelector('[data-copy="iframe"]').addEventListener("click", () => copyText(iframe));
-    ov.querySelector('[data-copy="iframeFlow"]').addEventListener("click", () => copyText(iframeFlow));
+    ov.querySelector("#shEmbed").addEventListener("change", refresh);
+    ov.querySelector('[data-copy="link"]').addEventListener("click", () => copyText(linkEl.value));
+    ov.querySelector('[data-copy="iframe"]').addEventListener("click", () => copyText(ifEl.value));
+    ov.querySelector('[data-copy="iframeFlow"]').addEventListener("click", () => copyText(ifFlowEl.value));
   }
 
   function saveCopy() {
